@@ -1,0 +1,436 @@
+---
+title: "390 Project Data Analysis"
+output: html_notebook
+---
+
+```{r}
+#Installing a cool package that downloads census data in a tidyverse-friendly format!
+#install.packages("tidycensus")
+```
+
+```{r}
+getwd()
+setwd("/Users/taylorbuck/Desktop/390/390DataAnalysis")
+library(tidyverse,dplyr)
+library(tidycensus)
+#census_api_key("21582ceae3532a9ad3b241a4886d94425d93157a", install = TRUE)
+```
+
+```{r}
+#Reloading my census API key and making sure it saved correctly.
+readRenviron("~/.Renviron")
+Sys.getenv("CENSUS_API_KEY")
+```
+
+***First I'm going to calculate the percentage change in median income in Orange County. I'm going to do from 2015 to 2018, which is the most recent data. I was thinkng 2015 because it was five years, but since the data was collected in 2018, I might switched to 2013, which would be five years before that. For right now, I'm operating under the assumption that the time frame is relatively arbitrary, since I'm assuming that the trends are relatively stable.
+
+```{r}
+#Using load_variables in to look at the variables in the ACS for 2018 and for 2015
+nc_acsvar2018 <- load_variables(2018, "acs5", cache = TRUE)
+nc_acsvar2015 <- load_variables(2015, "acs5", cache = TRUE)
+```
+
+```{r}
+#Using the tidycensus package to get the NC ACS data in a tidyverse friendly format.
+#Note to self: NC FIPS code is 37
+#Starting with the median income variable.
+nc_acs2018income <- get_acs(
+  geography = "county",
+  variables = c(medincome = "B06011_001"),
+  cache_table = TRUE,
+  year = 2018,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+```
+
+```{r}
+nc_acs2015income <- get_acs(
+  geography = "county",
+  variables = c(medincome = "B06011_001"),
+  cache_table = TRUE,
+  year = 2015,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+```
+
+```{r}
+#Messing with the dataframes to get them formatted how I want.
+nc_acs2018income$Year <- 2018
+nc_acs2018income
+nc_acs2018income <- nc_acs2018income %>%
+  rename(
+    County = NAME,
+    MedianIncome = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2015income$Year <- 2015
+nc_acs2015income
+nc_acs2015income <- nc_acs2015income %>%
+  rename(
+    County = NAME,
+    MedianIncome = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+```
+
+```{r}
+nc_acs2018income <- nc_acs2018income %>%
+  mutate(
+    IncomeChangePct = ((nc_acs2018income$MedianIncome - nc_acs2015income$MedianIncome) / nc_acs2015income$MedianIncome) * 100
+  )
+nc_acs2018income
+#Between 2015 and 2018, Median Income increase 12% in Orange County.
+
+nc_acs2018income <- nc_acs2018income %>%
+  arrange(desc(IncomeChangePct))
+
+
+#Saving the top 5 counties with the largest income increases.
+top5fiveincomeincrease <- nc_acs2018income %>%
+  top_n(10) %>%
+  arrange(desc(IncomeChangePct))
+```
+
+***Now I'm going to calculate the percentage change in average rent in Orange County. Again, I'm working with the time period between 2015 and 2018, but I might change this later to be between 2013 and 2018.
+
+**B25063_001: variable for gross rent.
+```{r}
+nc_acs2018rent <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25063_001"),
+  cache_table = TRUE,
+  year = 2018,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2015rent <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25063_001"),
+  cache_table = TRUE,
+  year = 2015,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+```
+```{r}
+nc_acs2018rent$Year <- 2018
+nc_acs2018rent
+nc_acs2018rent <- nc_acs2018rent %>%
+  rename(
+    County = NAME,
+    GrossRent = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2015rent$Year <- 2015
+nc_acs2015rent
+nc_acs2015rent <- nc_acs2015rent %>%
+  rename(
+    County = NAME,
+    GrossRent = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+```
+
+```{r}
+nc_acs2018rent <- nc_acs2018rent %>%
+  mutate(
+    RentChangePct = ((nc_acs2018rent$GrossRent - nc_acs2015rent$GrossRent) / nc_acs2015rent$GrossRent) * 100
+  )
+nc_acs2018rent
+
+#GrossRent decreased by 2 percent in Orange County.
+nc_acs2018rent %>%
+  arrange(desc(RentChangePct))
+```
+
+```{r}
+top10rentincrease <- nc_acs2018rent %>%
+  top_n(10) %>%
+  arrange(desc(RentChangePct))
+
+nc_acs2018income %>%
+  arrange(desc(IncomeChangePct))
+
+bottom10incomechange <- nc_acs2018income[69:78,]
+```
+
+
+**B25064_001: variable for median rent.
+```{r}
+nc_acs2018medianrent <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25064_001"),
+  cache_table = TRUE,
+  year = 2018,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2015medianrent <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25064_001"),
+  cache_table = TRUE,
+  year = 2015,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+```
+```{r}
+nc_acs2018medianrent$Year <- 2018
+nc_acs2018medianrent
+nc_acs2018medianrent <- nc_acs2018medianrent %>%
+  rename(
+    County = NAME,
+    MedianRent = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2015medianrent$Year <- 2015
+nc_acs2015medianrent
+nc_acs2015medianrent <- nc_acs2015medianrent %>%
+  rename(
+    County = NAME,
+    MedianRent = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+```
+
+```{r}
+nc_acs2018medianrent <- nc_acs2018medianrent %>%
+  mutate(
+    MedianRentPctChange = ((nc_acs2018medianrent$MedianRent - nc_acs2015medianrent$MedianRent) / nc_acs2015medianrent$MedianRent) * 100
+  )
+nc_acs2018medianrent
+
+#Orange county change in median rent: increase by 15 percent
+```
+
+```{r}
+nc_acs2018medianrent <- nc_acs2018medianrent %>%
+  arrange(desc(MedianRentPctChange))
+
+top10medianrent <- nc_acs2018medianrent %>%
+  top_n(10)
+
+bottom10medianrent <- nc_acs2018medianrent[91:100,]
+```
+
+
+
+**B25071_001: variable for gross rent as a percentage of household income.
+```{r}
+nc_acs2018rentincome <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25071_001"),
+  cache_table = TRUE,
+  year = 2018,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2015rentincome <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B25071_001"),
+  cache_table = TRUE,
+  year = 2015,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2018rentincome$Year <- 2018
+nc_acs2018rentincome
+nc_acs2018rentincome <- nc_acs2018rentincome %>%
+  rename(
+    County = NAME,
+    RentPctIncome = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2015rentincome$Year <- 2015
+nc_acs2015rentincome
+nc_acs2015rentincome <- nc_acs2015rentincome %>%
+  rename(
+    County = NAME,
+    RentPctIncome = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2018rentincome <- nc_acs2018rentincome %>%
+  mutate(
+    RenttoIncomeChangePct = ((nc_acs2018rentincome$RentPctIncome - nc_acs2015rentincome$RentPctIncome) / nc_acs2015rentincome$RentPctIncome) * 100
+  )
+nc_acs2018rentincome
+#Rent as a percentage of household income decreased by 0.3 percent in Orange County.
+```
+
+```{r}
+#Combining the percentage changes into one dataframe.
+nc_acs2018rentincome <- nc_acs2018rentincome %>%
+  arrange(desc(RenttoIncomeChangePct))
+nc_acs2018rentincome
+
+top10rentincome <- nc_acs2018rentincome %>%
+  top_n(10)
+
+bottom10rentincome <- nc_acs2018rentincome[91:100,]
+```
+
+**B05010_001: variable for ratio of income to poverty level.
+```{r}
+nc_acs2018incometopoverty <- get_acs(
+  geography = "county",
+  variables = c(incometopoverty = "B05010_001"),
+  cache_table = TRUE,
+  year = 2018,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2015incometopoverty <- get_acs(
+  geography = "county",
+  variables = c(grossrent = "B05010_001"),
+  cache_table = TRUE,
+  year = 2015,
+  output = "tidy",
+  state = "NC",
+  county = NULL,
+  geometry = FALSE,
+  keep_geo_vars = FALSE,
+  shift_geo = FALSE,
+  summary_var = NULL,
+  key = NULL,
+  moe_level = 90,
+  survey = "acs5",
+  show_call = FALSE
+)
+
+nc_acs2018incometopoverty$Year <- 2018
+nc_acs2018incometopoverty
+nc_acs2018incometopoverty <- nc_acs2018incometopoverty %>%
+  rename(
+    County = NAME,
+    IncomePovertyLevel = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2015incometopoverty$Year <- 2015
+nc_acs2015incometopoverty
+nc_acs2015incometopoverty <- nc_acs2015incometopoverty %>%
+  rename(
+    County = NAME,
+    IncomePovertyLevel = estimate,
+    MOE = moe
+    ) %>%
+  select(-variable)
+
+nc_acs2018incometopoverty <- nc_acs2018incometopoverty %>%
+  mutate(
+    IncomePovLevelPctChange = ((nc_acs2018incometopoverty$IncomePovertyLevel - nc_acs2015incometopoverty$IncomePovertyLevel) / nc_acs2015incometopoverty$IncomePovertyLevel) * 100
+  )
+nc_acs2018incometopoverty
+```
+
+
+```{r}
+combinednc_acs <- cbind(nc_acs2018income, nc_acs2018medianrent$MedianRentPctChange, nc_acs2018rent$RentChangePct, nc_acs2018rentincome$RenttoIncomeChangePct, nc_acs2018incometopoverty$IncomePovertyLevel)
+combinednc_acs <- combinednc_acs %>%
+  select(-c(MedianIncome, MOE,Year))
+combinednc_acs %>%
+  arrange(desc(IncomeChangePct))
+```
+
